@@ -1,6 +1,6 @@
 class TeamsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_team, only: %i[show edit update destroy]
+  before_action :set_team, only: %i[show edit update destroy change_owner]
 
   def index
     @teams = Team.all
@@ -15,7 +15,11 @@ class TeamsController < ApplicationController
     @team = Team.new
   end
 
-  def edit; end
+  def edit
+    if @team.owner.id != current_user.id
+      redirect_to team_url, notice: I18n.t('views.messages.cannot_delete_other_member_except_leader')
+    end
+  end
 
   def create
     @team = Team.new(team_params)
@@ -45,6 +49,16 @@ class TeamsController < ApplicationController
 
   def dashboard
     @team = current_user.keep_team_id ? Team.find(current_user.keep_team_id) : current_user.teams.first
+  end
+
+  def change_owner
+    @assign = Assign.find(params[:assign])
+    if @team.update(owner_id: @assign.user.id)
+      ChangeOwnerMailer.change_owner_mail(@assign.user.email).deliver
+      redirect_to team_url, notice: I18n.t('views.messages.leader_permissions_moved!')
+    else
+      redirect_to team_url, notice: I18n.t('views.messages.leader_permissions_transfer failed...')
+    end
   end
 
   private
